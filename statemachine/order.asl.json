@@ -1,0 +1,163 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "Create Order",
+  "States": {
+    "Create Order": {
+      "Type": "Task",
+      "Resource": "${DDBPutItem}",
+      "Parameters": {
+        "TableName": "${DDBOrdersTable}",
+        "Item": {
+          "id": {
+            "S.$": "$.id"
+          },
+          "orderStatus": {
+            "S.$": "$.orderStatus"
+          },
+          "customerId": {
+            "S.$": "$.customerId"
+          },
+          "productsInfo": {
+            "S.$": "States.JsonToString($.productsInfo)"
+          }
+        }
+      },
+      "Next": "Choice",
+      "ResultPath": "$.result",
+      "ResultSelector": {
+        "statusCode.$": "$.SdkHttpMetadata.HttpStatusCode"
+      }
+    },
+    "Choice": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.result.statusCode",
+          "NumericEquals": 200,
+          "Next": "Check Products Abailability"
+        }
+      ],
+      "Default": "Fail"
+    },
+    "Check Products Abailability": {
+      "Type": "Task",
+      "Resource": "${CheckProductsAvailabilityArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Charge customer",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Fallback - Remove Order",
+          "ResultPath": "$.result"
+        }
+      ],
+      "ResultPath": "$.result"
+    },
+    "Charge customer": {
+      "Type": "Task",
+      "Resource": "${ChargeCustomerArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "Fallback - Remove Order",
+          "ResultPath": "$.result"
+        }
+      ],
+      "Next": "Send Mail",
+      "ResultPath": "$.result",
+      "InputPath": "$.result.Payload"
+    },
+    "Send Mail": {
+      "Type": "Task",
+      "Resource": "${SendMailArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Update Order Status",
+      "InputPath": "$.result.Payload",
+      "ResultPath": "$.result"
+    },
+    "Update Order Status": {
+      "Type": "Task",
+      "Resource": "${DDBUpdateItem}",
+      "Parameters": {
+        "TableName": "${DDBOrdersTable}",
+        "Key": {
+          "id": {
+            "S.$": "$.id"
+          }
+        },
+        "UpdateExpression": "SET orderStatus = :orderStatus",
+        "ExpressionAttributeValues": {
+          ":orderStatus": {
+            "S": "IN_DELIVERY"
+          }
+        }
+      },
+      "Next": "Success",
+      "ResultPath": null
+    },
+    "Success": {
+      "Type": "Succeed"
+    },
+    "Fallback - Remove Order": {
+      "Type": "Task",
+      "Resource": "${DDBDeleteItem}",
+      "Parameters": {
+        "TableName": "${DDBOrdersTable}",
+        "Key": {
+          "id": {
+            "S.$": "$.id"
+          }
+        }
+      },
+      "Next": "Fail",
+      "ResultSelector": {
+        "statusCode.$": "$.SdkHttpMetadata.HttpStatusCode"
+      },
+      "ResultPath": "$.result"
+    },
+    "Fail": {
+      "Type": "Fail"
+    }
+  }
+}

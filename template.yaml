@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  app
+
+Resources:
+  OrderStateMachine:
+    Type: AWS::Serverless::StateMachine # More info about State Machine Resource: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-statemachine.html
+    Properties:
+      DefinitionUri: statemachine/order.asl.json
+      DefinitionSubstitutions:
+        CheckProductsAvailabilityArn: !GetAtt CheckProductsAvailability.Arn
+        ChargeCustomerArn: !GetAtt ChargeCustomer.Arn
+        SendMailArn: !GetAtt SendMail.Arn
+        DDBPutItem: !Sub arn:${AWS::Partition}:states:::dynamodb:putItem
+        DDBUpdateItem: !Sub arn:${AWS::Partition}:states:::dynamodb:updateItem
+        DDBDeleteItem: !Sub arn:${AWS::Partition}:states:::dynamodb:deleteItem
+        DDBOrdersTable: !Ref OrdersTable
+      Policies: # Find out more about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+        - LambdaInvokePolicy:
+            FunctionName: !Ref CheckProductsAvailability
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ChargeCustomer
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SendMail
+        - DynamoDBCrudPolicy: 
+            TableName: !Ref OrdersTable
+
+  CheckProductsAvailability:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/check-products-availability/
+      Handler: app.lambdaHandler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 20
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          PRODUCTS_TABLE: !Ref ProductsTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints: 
+        - app.ts
+
+  ChargeCustomer:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: functions/charge-customer/
+      Handler: app.lambdaHandler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 20
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          CUSTOMERS_TABLE: !Ref CustomersTable
+          PRODUCTS_TABLE: !Ref ProductsTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints: 
+        - app.ts
+
+  SendMail:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: functions/send-mail/
+      Handler: app.lambdaHandler
+      Timeout: 40
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          SMTP_HOST: smtp.gmail.com
+          SMTP_PORT: 587
+          SMTP_USER: todorestapplication@gmail.com
+          SMTP_PASSWORD: nmdaiphmdykcojwi
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints: 
+        - app.ts
+
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      KeySchema: 
+          - AttributeName: id
+            KeyType: HASH
+      AttributeDefinitions: 
+        - AttributeName: id
+          AttributeType: S
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  CustomersTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      KeySchema: 
+          - AttributeName: id
+            KeyType: HASH
+      AttributeDefinitions: 
+        - AttributeName: id
+          AttributeType: S
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  ProductsTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      KeySchema: 
+          - AttributeName: id
+            KeyType: HASH
+      AttributeDefinitions: 
+        - AttributeName: id
+          AttributeType: S
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: Allow
+            Principal: 
+              Service: 
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies: 
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: Allow
+                Action: 
+                  - dynamodb:*
+                Resource: "arn:aws:dynamodb:*:*:table/*"

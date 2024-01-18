@@ -1,0 +1,27 @@
+{
+    "customerInfo": {
+      "fullName": "Daniil Rummo",
+      "email": "Danik1320@yandex.by"
+    },
+    "orderInfo": {
+      "customerId": "1",
+      "orderId": "1",
+      "totalPrice": 805,
+      "orderProducts": [
+        {
+          "count": 29,
+          "id": "2",
+          "price": 5,
+          "name": "Pencil",
+          "desiredCount": 1
+        },
+        {
+            "count": 29,
+            "id": "2",
+            "price": 400,
+            "name": "Playstation 5 Slim",
+            "desiredCount": 2
+          }
+      ]
+    }
+  }

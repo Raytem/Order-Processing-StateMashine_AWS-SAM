@@ -1,0 +1,21 @@
+{
+    "customerId": "1",
+    "orderId": "1",
+    "totalPrice": 405,
+    "orderProducts": [
+      {
+        "count": 30,
+        "id": "2",
+        "price": 5,
+        "name": "Pencil",
+        "desiredCount": 1
+      },
+      {
+        "count": 10,
+        "id": "1",
+        "price": 400,
+        "name": "PlayStation 5",
+        "desiredCount": 1
+      }
+    ]
+  }

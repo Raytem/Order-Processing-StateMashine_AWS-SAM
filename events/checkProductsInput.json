@@ -1,0 +1,15 @@
+{
+  "id": "1",
+  "customerId": "1",
+  "orderStatus": "PROCESSING",
+  "productsInfo": [
+    {
+      "id": "1",
+      "count": 1
+    },
+    {
+      "id": "2",
+      "count": 1
+    }
+  ]
+}
