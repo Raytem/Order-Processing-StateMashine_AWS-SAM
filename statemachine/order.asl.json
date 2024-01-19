@@ -94,7 +94,7 @@
       ],
       "Next": "Send Mail",
       "ResultPath": "$.result",
-      "InputPath": "$.result.Payload"
+      "InputPath": "$.result"
     },
     "Send Mail": {
       "Type": "Task",
@@ -113,7 +113,7 @@
         }
       ],
       "Next": "Update Order Status",
-      "InputPath": "$.result.Payload",
+      "InputPath": "$.result",
       "ResultPath": "$.result"
     },
     "Update Order Status": {

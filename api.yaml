@@ -1,0 +1,23 @@
+openapi: 3.0.1
+info:
+  version: 1.0.11
+  title: OrderProcessingApi
+paths:
+  /order:
+    post:
+      responses:
+        default:
+          description: Successful operation
+      x-amazon-apigateway-integration:
+        integrationSubtype: SQS-SendMessage
+        credentials:
+          Fn::GetAtt:
+            - HttpPutSQSMessageRole
+            - Arn
+        requestParameters:
+          MessageBody: $request.body
+          QueueUrl:
+            Ref: OrdersQueue
+        payloadFormatVersion: '1.0'
+        type: aws_proxy
+        connectionType: INTERNET

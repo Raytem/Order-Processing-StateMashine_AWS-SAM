@@ -1,9 +1,32 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  app
+  simple app that process orders, architecture:
+  Apigw -> SQS -> Lambda -> StateMachine
 
 Resources:
+  OrdersQueue:
+      Type: AWS::SQS::Queue
+
+  OrderProcessingApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/api-gateway/OrderProcessingApi
+      RetentionInDays: 1
+
+  OrderProcessingApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      AccessLogSettings:
+        DestinationArn: !GetAtt OrderProcessingApiLogGroup.Arn
+        Format: $context.requestId $context.identity.sourceIp $context.requestTime $context.path $context.status $context.protocol $context.httpMethod $context.integrationErrorMessage
+      DefinitionBody:
+        'Fn::Transform':
+          Name: 'AWS::Include'
+          Parameters:
+            Location: api.yaml
+
   OrderStateMachine:
     Type: AWS::Serverless::StateMachine # More info about State Machine Resource: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-statemachine.html
     Properties:
@@ -25,6 +48,35 @@ Resources:
             FunctionName: !Ref SendMail
         - DynamoDBCrudPolicy: 
             TableName: !Ref OrdersTable
+
+  ValidateRequest:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/validate-request/
+      Handler: app.lambdaHandler
+      Runtime: nodejs20.x
+      Timeout: 10
+      Architectures:
+        - x86_64
+      Role: !GetAtt LambdaStartOrderStateMachineRole.Arn
+      Environment:
+        Variables: 
+          ORDER_STATE_MACHINE: !Ref OrderStateMachine
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt OrdersQueue.Arn
+            BatchSize: 10
+             
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints: 
+        - app.ts
 
   CheckProductsAvailability:
     Type: AWS::Serverless::Function
@@ -153,4 +205,57 @@ Resources:
               - Effect: Allow
                 Action: 
                   - dynamodb:*
-                Resource: "arn:aws:dynamodb:*:*:table/*"
+                Resource: 
+                  - !GetAtt ProductsTable.Arn
+                  - !GetAtt CustomersTable.Arn
+
+  HttpPutSQSMessageRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service: "apigateway.amazonaws.com"
+              Action: 
+                - "sts:AssumeRole"
+      Policies:
+        - PolicyName: SQSPolicy
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: Allow  
+                Action: sqs:SendMessage
+                Resource: !GetAtt OrdersQueue.Arn
+
+  LambdaStartOrderStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:  
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: Allow
+            Principal: 
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies: 
+        - PolicyName: LambdaOrderStateMachineAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - states:StartExecution
+                Resource: 
+                  - !Ref OrderStateMachine
+        - PolicyName: SQSReceivePolicy  
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: Allow
+                Action:  
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt OrdersQueue.Arn

@@ -1,7 +1,5 @@
 {
-  "id": "1",
   "customerId": "1",
-  "orderStatus": "PROCESSING",
   "productsInfo": [
     {
       "id": "1",

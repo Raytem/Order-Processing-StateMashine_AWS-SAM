@@ -1,0 +1,7 @@
+{
+    "Records": [
+      {
+        "body": "{\"customerId\":\"1\",\"productsInfo\":[{\"id\":\"1\",\"count\":1},{\"id\":\"2\",\"count\":1}]}"
+      }
+    ]
+  }
